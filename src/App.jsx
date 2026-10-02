@@ -1338,8 +1338,7 @@ export default function App() {
                     const isIncome = item.category === 'Income / Salary' || item.type === 'Income';
                     return (
                       <tr key={item.rowIndex || item.createdAt} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
-                        <td className="py-3.5 px-4 font-mono text-slate-400 whitespace-nowrap">{new Date(item.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
-                        <td className="py-3.5 px-4 whitespace-nowrap">
+                        <td className="py-3.5 px-4 font-mono text-slate-400 whitespace-nowrap">{item.date.split('-')[2] + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(item.date.split('-')[1]) - 1] + ' ' + item.date.split('-')[0]}</td>                        <td className="py-3.5 px-4 whitespace-nowrap">
                           <span className={`px-2.5 py-1 rounded-full font-bold text-[10px] tracking-wide uppercase border ${
                             isIncome
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800'
