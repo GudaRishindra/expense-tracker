@@ -1338,7 +1338,7 @@ export default function App() {
                     const isIncome = item.category === 'Income / Salary' || item.type === 'Income';
                     return (
                       <tr key={item.rowIndex || item.createdAt} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
-                        <td className="py-3.5 px-4 font-mono text-slate-400 whitespace-nowrap">{item.date}</td>
+                        <td className="py-3.5 px-4 font-mono text-slate-400 whitespace-nowrap">{new Date(item.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
                         <td className="py-3.5 px-4 whitespace-nowrap">
                           <span className={`px-2.5 py-1 rounded-full font-bold text-[10px] tracking-wide uppercase border ${
                             isIncome
