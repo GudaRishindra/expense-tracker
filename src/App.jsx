@@ -68,7 +68,7 @@ const PAYMENT_METHODS = [
 const QUICK_PRESETS = [
   { label: '☕ Chai / Coffee', category: 'Food', amount: 40, description: 'Tea / Coffee break', paymentMethod: 'UPI' },
   { label: '🍛 Canteen Lunch', category: 'Food', amount: 150, description: 'Lunch at canteen', paymentMethod: 'UPI' },
-  { label: '🛺 Auto / Cab', category: 'Travel', amount: 20, description: 'Auto fare', paymentMethod: 'UPI' },
+  { label: '🛺 Auto / Cab', category: 'Travel', amount: 20, description: 'Auto fare to college', paymentMethod: 'UPI' },
   { label: '🛒 Groceries', category: 'Groceries', amount: 650, description: 'Weekly essentials', paymentMethod: 'UPI' },
   { label: '📶 Wi-Fi Bill', category: 'Bills', amount: 999, description: 'Broadband recharge', paymentMethod: 'Credit Card' }
 ];
