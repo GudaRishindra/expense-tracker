@@ -270,7 +270,10 @@ export default function App() {
     return false;
   });
 
-  const [monthlyBudget, setMonthlyBudget] = useState(12000);
+  const [monthlyBudget, setMonthlyBudget] = useState(() => {
+  const savedBudget = localStorage.getItem('EXPENSE_TRACKER_MONTHLY_BUDGET');
+  return savedBudget ? Number(savedBudget) : 12000;
+});
   const [isEditingBudget, setIsEditingBudget] = useState(false);
 
   const [isConnected, setIsConnected] = useState(false);
@@ -831,7 +834,13 @@ export default function App() {
                     }`}
                   />
                   <button
-                    onClick={() => setIsEditingBudget(false)}
+                    onClick={() => {
+                      localStorage.setItem(
+                        'EXPENSE_TRACKER_MONTHLY_BUDGET',
+                        String(monthlyBudget)
+                      );
+                      setIsEditingBudget(false);
+                   }}
                     className="px-3 py-1 bg-indigo-600 text-white text-xs rounded-lg font-bold"
                   >
                     Save
