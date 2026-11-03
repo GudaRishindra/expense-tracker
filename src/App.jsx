@@ -144,82 +144,61 @@ const DEFAULT_EXPENSES = [
   }
 ];
 
-const APPS_SCRIPT_CODE = `function doGet(e) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getActiveSheet();
-  var data = sheet.getDataRange().getValues();
-  
-  if (data.length <= 1) {
-    return ContentService.createTextOutput(JSON.stringify({ status: "success", data: [] }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-  
-  var rows = [];
-  for (var i = 1; i < data.length; i++) {
-    var row = data[i];
-    rows.push({
-      rowIndex: i + 1,
-      date: row[0] ? String(row[0]).substring(0,10) : "",
-      category: row[1] || "",
-      description: row[2] || "",
-      amount: Number(row[3]) || 0,
-      paymentMethod: row[4] || "",
-      notes: row[5] || "",
-      createdAt: row[6] || ""
-    });
-  }
-  
-  return ContentService.createTextOutput(JSON.stringify({ status: "success", data: rows }))
-    .setMimeType(ContentService.MimeType.JSON);
+const APPS_SCRIPT_CODE = `function jsonOutput(payload) {
+  return ContentService.createTextOutput(JSON.stringify(payload)).setMimeType(ContentService.MimeType.JSON);
 }
-
-function doPost(e) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getActiveSheet();
-  
-  if (sheet.getLastRow() === 0) {
-    sheet.appendRow(["Date", "Category", "Description", "Amount (INR)", "Payment Method", "Notes", "Created At"]);
+function ensureIncomeColumn(sheet, ss) {
+  var lastRow=sheet.getLastRow(), lastCol=sheet.getLastColumn();
+  var headersNew=["Date","Category","Income (INR)","Description","Amount (INR)","Payment Method","Notes","Created At"];
+  if(lastRow===0||lastCol===0){sheet.getRange(1,1,1,headersNew.length).setValues([headersNew]);return;}
+  var values=sheet.getDataRange().getValues();
+  var headers=values[0].map(function(v){return String(v||"").trim().toLowerCase();});
+  if(headers.indexOf("income (inr)")!==-1||headers.indexOf("income")!==-1)return;
+  var stamp=Utilities.formatDate(new Date(),ss.getSpreadsheetTimeZone(),"yyyyMMdd_HHmmss");
+  var backupName="Backup before Income column "+stamp, suffix=1;
+  while(ss.getSheetByName(backupName))backupName="Backup before Income column "+stamp+"_"+suffix++;
+  sheet.copyTo(ss).setName(backupName);
+  var migrated=[headersNew];
+  for(var i=1;i<values.length;i++){
+    var old=values[i], isSalary=String(old[1]||"").trim().toLowerCase()==="income / salary";
+    var oldAmount=old[3]===""||old[3]===null?"":old[3];
+    migrated.push([old[0]||"",old[1]||"",isSalary?oldAmount:"",old[2]||"",isSalary?"":oldAmount,old[4]||"",old[5]||"",old[6]||""]);
   }
-  
-  var body = JSON.parse(e.postData.contents);
-  var action = body.action;
-  
-  if (action === "ADD") {
-    sheet.appendRow([
-      body.date,
-      body.category,
-      body.description,
-      body.amount,
-      body.paymentMethod,
-      body.notes || "",
-      new Date().toISOString()
-    ]);
-    return ContentService.createTextOutput(JSON.stringify({ status: "success" }))
-      .setMimeType(ContentService.MimeType.JSON);
+  sheet.clearContents();
+  sheet.getRange(1,1,migrated.length,headersNew.length).setValues(migrated);
+}
+function doGet(e){
+  var ss=SpreadsheetApp.getActiveSpreadsheet(), sheet=ss.getActiveSheet();
+  ensureIncomeColumn(sheet,ss);
+  var data=sheet.getDataRange().getValues();
+  if(data.length<=1)return jsonOutput({status:"success",data:[]});
+  var rows=[];
+  for(var i=1;i<data.length;i++){
+    var row=data[i], category=row[1]||"", isSalary=String(category).trim().toLowerCase()==="income / salary";
+    var incomeAmount=Number(row[2])||0, expenseAmount=Number(row[4])||0;
+    rows.push({rowIndex:i+1,date:row[0]?String(row[0]).substring(0,10):"",category:category,
+      incomeAmount:incomeAmount,description:row[3]||"",amount:isSalary?incomeAmount:expenseAmount,
+      paymentMethod:row[5]||"",notes:row[6]||"",createdAt:row[7]||""});
   }
-  
-  if (action === "DELETE") {
-    sheet.deleteRow(body.rowIndex);
-    return ContentService.createTextOutput(JSON.stringify({ status: "success" }))
-      .setMimeType(ContentService.MimeType.JSON);
+  return jsonOutput({status:"success",data:rows});
+}
+function doPost(e){
+  var ss=SpreadsheetApp.getActiveSpreadsheet(), sheet=ss.getActiveSheet();
+  ensureIncomeColumn(sheet,ss);
+  var body=JSON.parse(e.postData.contents), action=body.action, category=String(body.category||"").trim();
+  var isSalary=category.toLowerCase()==="income / salary";
+  var incomeValue=isSalary?(Number(body.amount)||0):"", expenseValue=isSalary?"":(Number(body.amount)||0);
+  if(action==="ADD"){
+    sheet.appendRow([body.date,category,incomeValue,body.description,expenseValue,body.paymentMethod,body.notes||"",new Date().toISOString()]);
+    return jsonOutput({status:"success"});
   }
-
-  if (action === "EDIT") {
-    var range = sheet.getRange(body.rowIndex, 1, 1, 6);
-    range.setValues([[
-      body.date,
-      body.category,
-      body.description,
-      body.amount,
-      body.paymentMethod,
-      body.notes || ""
-    ]]);
-    return ContentService.createTextOutput(JSON.stringify({ status: "success" }))
-      .setMimeType(ContentService.MimeType.JSON);
+  if(action==="DELETE"){sheet.deleteRow(body.rowIndex);return jsonOutput({status:"success"});}
+  if(action==="EDIT"){
+    var createdAt=sheet.getRange(body.rowIndex,8).getValue();
+    sheet.getRange(body.rowIndex,1,1,8).setValues([[body.date,category,incomeValue,body.description,expenseValue,body.paymentMethod,body.notes||"",createdAt]]);
+    return jsonOutput({status:"success"});
   }
-  
-  return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Invalid action" }))
-    .setMimeType(ContentService.MimeType.JSON);
+  return jsonOutput({status:"error",message:"Invalid action"});
 }`;
 
 const safeCopyToClipboard = async (text) => {
@@ -570,16 +549,19 @@ export default function App() {
       notify('No data available to export.', 'error');
       return;
     }
-    const headers = ['Date', 'Category', 'Description', 'Amount (INR)', 'Type', 'Payment Method', 'Notes'];
-    const rows = expenses.map(e => [
-      `"${e.date}"`,
-      `"${e.category}"`,
-      `"${e.description.replace(/"/g, '""')}"`,
-      e.amount,
-      `"${e.category === 'Income / Salary' ? 'Income' : 'Expense'}"`,
-      `"${e.paymentMethod}"`,
-      `"${(e.notes || '').replace(/"/g, '""')}"`
-    ]);
+    const headers = ['Date', 'Category', 'Income (INR)', 'Description', 'Amount (INR)', 'Type', 'Payment Method', 'Notes'];
+    const rows = expenses.map(e => {
+      const isIncome = e.category === 'Income / Salary' || e.type === 'Income';
+      return [
+        `"${e.date}"`, `"${e.category}"`,
+        isIncome ? (e.incomeAmount || e.amount || 0) : '',
+        `"${(e.description || '').replace(/"/g, '""')}"`,
+        isIncome ? '' : (e.amount || 0),
+        `"${isIncome ? 'Income' : 'Expense'}"`,
+        `"${e.paymentMethod || ''}"`,
+        `"${(e.notes || '').replace(/"/g, '""')}"`
+      ];
+    });
 
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
@@ -1326,8 +1308,9 @@ export default function App() {
                   <tr className="border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                     <th className="py-3 px-4">Date</th>
                     <th className="py-3 px-4">Category</th>
+                    <th className="py-3 px-4">Income (INR)</th>
                     <th className="py-3 px-4">Description</th>
-                    <th className="py-3 px-4">Amount</th>
+                    <th className="py-3 px-4">Amount (INR)</th>
                     <th className="py-3 px-4">Payment</th>
                     <th className="py-3 px-4">Notes</th>
                     <th className="py-3 px-4 text-right">Actions</th>
@@ -1348,12 +1331,9 @@ export default function App() {
                             {item.category}
                           </span>
                         </td>
+                        <td className="py-3.5 px-4 font-black whitespace-nowrap text-emerald-500">{isIncome ? formatINR(item.incomeAmount || item.amount) : '—'}</td>
                         <td className="py-3.5 px-4 font-semibold">{item.description}</td>
-                        <td className={`py-3.5 px-4 font-black whitespace-nowrap ${
-                          isIncome ? 'text-emerald-500' : 'text-rose-500'
-                        }`}>
-                          {isIncome ? '+' : '-'}{formatINR(item.amount)}
-                        </td>
+                        <td className="py-3.5 px-4 font-black whitespace-nowrap text-rose-500">{isIncome ? '—' : formatINR(item.amount)}</td>
                         <td className="py-3.5 px-4 text-slate-400 whitespace-nowrap">{item.paymentMethod}</td>
                         <td className="py-3.5 px-4 text-slate-400 italic max-w-xs truncate">{item.notes || '-'}</td>
                         <td className="py-3.5 px-4 text-right whitespace-nowrap space-x-1">
